@@ -6,7 +6,7 @@ from langchain_core.tools import create_retriever_tool
 from langchain_community.utilities import SQLDatabase
 from langchain_community.agent_toolkits.sql.toolkit import SQLDatabaseToolkit
 from langgraph.prebuilt import create_react_agent
-
+from langgraph.checkpoint.memory import MemorySaver
 
 load_dotenv() # Load environment variables
 openai_api_key = os.getenv('OPENAI_API_KEY')
@@ -65,9 +65,21 @@ sql_tool = toolkit.get_tools()
 
 tools = sql_tool + [vectordb_tool] # wrap vectordb_tool to make it a list, sql_tool is already a list
 
-agent = create_react_agent(llm, tools=tools, prompt=system_prompt)
+memory = MemorySaver() # Memory for conversation
+
+config = {"configurable": {"thread_id": "nba_chat"}}
+
+agent = create_react_agent(llm, tools=tools, prompt=system_prompt, checkpointer=memory)
 
 # Ask question
-response = agent.invoke({"messages": [("user", "What position does Stephen Curry play and what was his PPG in 2022-23?")]})
-print(response["messages"][-1].content)
+while True:
+    question = input("Ask a question to the NBA Chatbot: (Type 'quit' to stop chatting)")
+    
+    if question.lower() == 'quit':
+        print('Thank you for trying out the NBA Chatbot!')
+        break
 
+    response = agent.invoke({"messages": [("user", question)]}, config=config)
+    print(response["messages"][-1].content)
+
+    

@@ -1,16 +1,20 @@
 import sqlite3
-
+import time
 # Import NBA season stats for the top 500 players of each season
 from nba_api.stats.endpoints import leagueleaders 
 
-# Import league-wide player stats for seasons 2018 to 2023 (will expand later)
-seasons = ['2018-19', '2019-20', '2020-21', '2021-22', '2022-23']
+# Import league-wide player stats for seasons 1985 to 2025
+seasons = []
+for year in range(1984, 2025):
+    season = f'{year}-{(year+1) % 100:02d}'
+    seasons.append(season)
 
 all_data = [] # List for seasons pulled
 for season in seasons:
     print(f'Pulling {season}...') # Print statement for season pulled
     leaders = leagueleaders.LeagueLeaders(season=season) # Call NBA API for season stats
     df = leaders.get_data_frames()[0] # Get first table of player stats
+    time.sleep(1) # Pause for 1 second after getting each season to prevent being rate-limited
     df['SEASON'] = season
     df['PPG'] = df['PTS'] / df['GP']
     df['APG'] = df['AST'] / df['GP']
