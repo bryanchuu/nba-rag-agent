@@ -1,13 +1,17 @@
 import os
 from dotenv import load_dotenv
 from langchain_community.utilities import SQLDatabase
-from langchain.chat_models import init_chat_model
+from langchain_openai import ChatOpenAI
 from langchain_community.agent_toolkits import create_sql_agent
 
 load_dotenv() # Load environment variables
 openai_api_key = os.getenv('OPENAI_API_KEY')
 
-model = init_chat_model('gpt-4o-mini') # Initialize language model
+llm = ChatOpenAI(
+    model='gpt-4o-mini',  # Specify your desired OpenAI model
+    temperature=0,        # Controls creativity (0.0 = deterministic, 1.0 = creative)
+    max_tokens=1000        # Maximum response length
+)
 
 db = SQLDatabase.from_uri('sqlite:///nba_stats.db') # Connect to nba_stats database
 print(db.get_usable_table_names()) # Sanity check for tables in database
@@ -33,7 +37,7 @@ To start you should ALWAYS look at the tables in the database to see what you ca
 
 # Create SQL Agent
 agent_executor = create_sql_agent( 
-    llm=model, 
+    llm=llm, 
     db=db,
     agent_type='tool-calling',
     prefix=system_prompt,
