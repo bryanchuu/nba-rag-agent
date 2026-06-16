@@ -8,78 +8,86 @@ from langchain_community.agent_toolkits.sql.toolkit import SQLDatabaseToolkit
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 
-load_dotenv() # Load environment variables
-openai_api_key = os.getenv('OPENAI_API_KEY')
 
-persist_directory='./nba_bios_vectordb' 
+def create_nba_agent():
+    load_dotenv() # Load environment variables
+    openai_api_key = os.getenv('OPENAI_API_KEY')
 
-db = SQLDatabase.from_uri('sqlite:///nba_stats.db') # Connect to nba_stats database
+    persist_directory='./nba_bios_vectordb' 
 
-embeddings = OpenAIEmbeddings()
+    db = SQLDatabase.from_uri('sqlite:///nba_stats.db') # Connect to nba_stats database
 
-system_prompt = """
-You are an expert NBA Analyst and AI assistant for our database. Your primary goal is to accurately answer user questions by querying the database, but you must NEVER take requests blindly. Apply semantic understanding, context, and the following business rules:
+    embeddings = OpenAIEmbeddings()
 
-Teams are stored as abbreviations (e.g. LAL = Lakers, BOS = Celtics, GSW = Warriors, MIA = Heat, CHI = Bulls, etc.). When a user mentions a team by full name or city, map it to the correct abbreviation using LIKE matching.
+    system_prompt = """
+    You are an expert NBA Analyst and AI assistant for our database. Your primary goal is to accurately answer user questions by querying the database, but you must NEVER take requests blindly. Apply semantic understanding, context, and the following business rules:
 
-For shooting and free throw percentage queries, apply a minimum attempt threshold of 100 attempts by default unless the user specifies otherwise. This prevents misleading results from low-volume shooters.
+    Teams are stored as abbreviations (e.g. LAL = Lakers, BOS = Celtics, GSW = Warriors, MIA = Heat, CHI = Bulls, etc.). When a user mentions a team by full name or city, map it to the correct abbreviation using LIKE matching.
 
-Player names may contain special characters (like ć, ö, ñ, etc.). The database has a PLAYER_NORMALIZED column with ASCII-only versions of names. Always use PLAYER_NORMALIZED with LIKE for matching players, but display the original PLAYER column in results.
+    For shooting and free throw percentage queries, apply a minimum attempt threshold of 100 attempts by default unless the user specifies otherwise. This prevents misleading results from low-volume shooters.
 
-The database includes pre-calculated per-game stats: PPG, APG, RPG, SPG, BPG, MPG, TOPG, FPG, FGA_PG, FGM_PG, FG3A_PG, FG3M_PG, FTA_PG, FTM_PG, OREB_PG, DREB_PG. Use these columns directly instead of calculating per-game stats manually.
+    Player names may contain special characters (like ć, ö, ñ, etc.). The database has a PLAYER_NORMALIZED column with ASCII-only versions of names. Always use PLAYER_NORMALIZED with LIKE for matching players, but display the original PLAYER column in results.
 
-You MUST double check your query before executing it. If you get an error while executing a query, rewrite the query and try again.
+    The database includes pre-calculated per-game stats: PPG, APG, RPG, SPG, BPG, MPG, TOPG, FPG, FGA_PG, FGM_PG, FG3A_PG, FG3M_PG, FTA_PG, FTM_PG, OREB_PG, DREB_PG. Use these columns directly instead of calculating per-game stats manually.
 
-DO NOT make any DML statements (INSERT, UPDATE, DELETE, DROP etc.) to the database.
+    You MUST double check your query before executing it. If you get an error while executing a query, rewrite the query and try again.
 
-To start you should ALWAYS look at the tables in the database to see what you can query. Do NOT skip this step.
-"""
+    DO NOT make any DML statements (INSERT, UPDATE, DELETE, DROP etc.) to the database.
 
-# Load vectorDB
-vectordb = Chroma(
-    embedding_function=embeddings,
-    persist_directory=persist_directory
-)
+    To start you should ALWAYS look at the tables in the database to see what you can query. Do NOT skip this step.
+    """
 
-# Set up LLM
-llm = ChatOpenAI(
-    model='gpt-4o-mini',  # Specify your desired OpenAI model
-    temperature=0,        # Controls creativity (0.0 = deterministic, 1.0 = creative)
-    max_tokens=1000        # Maximum response length
-)
+    # Load vectorDB
+    vectordb = Chroma(
+        embedding_function=embeddings,
+        persist_directory=persist_directory
+    )
 
-
-# Set up vectorDB tool
-db_retriever = vectordb.as_retriever(search_kwargs={"k": 4})
-
-vectordb_tool =create_retriever_tool(
-  retriever= db_retriever,
-  name= "search_player_bios",
-  description= "Search for NBA player biographical information including championships, career history, awards, draft info, and playing style." 
-) 
-
-# Set up SQL tool
-toolkit = SQLDatabaseToolkit(db=db, llm=llm)
-sql_tool = toolkit.get_tools()
+    # Set up LLM
+    llm = ChatOpenAI(
+        model='gpt-4o-mini',  # Specify your desired OpenAI model
+        temperature=0,        # Controls creativity (0.0 = deterministic, 1.0 = creative)
+        max_tokens=1000        # Maximum response length
+    )
 
 
-tools = sql_tool + [vectordb_tool] # wrap vectordb_tool to make it a list, sql_tool is already a list
+    # Set up vectorDB tool
+    db_retriever = vectordb.as_retriever(search_kwargs={"k": 4})
 
-memory = MemorySaver() # Memory for conversation
+    vectordb_tool =create_retriever_tool(
+    retriever= db_retriever,
+    name= "search_player_bios",
+    description= "Search for NBA player biographical information including championships, career history, awards, draft info, and playing style." 
+    ) 
 
-config = {"configurable": {"thread_id": "nba_chat"}}
+    # Set up SQL tool
+    toolkit = SQLDatabaseToolkit(db=db, llm=llm)
+    sql_tool = toolkit.get_tools()
 
-agent = create_react_agent(llm, tools=tools, prompt=system_prompt, checkpointer=memory)
+
+    tools = sql_tool + [vectordb_tool] # wrap vectordb_tool to make it a list, sql_tool is already a list
+
+    memory = MemorySaver() # Memory for conversation
+
+    config = {"configurable": {"thread_id": "nba_chat"}}
+
+    agent = create_react_agent(llm, tools=tools, prompt=system_prompt, checkpointer=memory)
+    
+    return agent, config
 
 # Ask question
-while True:
-    question = input("Ask a question to the NBA Chatbot: (Type 'quit' to stop chatting)")
-    
-    if question.lower() == 'quit':
-        print('Thank you for trying out the NBA Chatbot!')
-        break
 
-    response = agent.invoke({"messages": [("user", question)]}, config=config)
-    print(response["messages"][-1].content)
+if __name__ == '__main__':
+    agent, config = create_nba_agent()
+    
+    while True:
+        question = input("Ask a question to the NBA Chatbot: (Type 'quit' to stop chatting)")
+        
+        if question.lower() == 'quit':
+            print('Thank you for trying out the NBA Chatbot!')
+            break
+
+        response = agent.invoke({"messages": [("user", question)]}, config=config)
+        print(response["messages"][-1].content)
 
     
