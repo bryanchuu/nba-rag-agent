@@ -35,6 +35,8 @@ def create_nba_agent():
     DO NOT make any DML statements (INSERT, UPDATE, DELETE, DROP etc.) to the database.
 
     To start you should ALWAYS look at the tables in the database to see what you can query. Do NOT skip this step.
+
+    The most recent season in the database is 2024-25. When users say "last N years" or "recent", count backwards from 2024-25.
     """
 
     # Load vectorDB
@@ -46,7 +48,7 @@ def create_nba_agent():
     # Set up LLM
     llm = ChatOpenAI(
         model='gpt-4o-mini',  # Specify your desired OpenAI model
-        temperature=0,        # Controls creativity (0.0 = deterministic, 1.0 = creative)
+        temperature=0.3,        # Controls creativity (0.0 = deterministic, 1.0 = creative)
         max_tokens=1000        # Maximum response length
     )
 
